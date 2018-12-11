@@ -40,6 +40,9 @@ with zipfile.ZipFile('test2.zip',"r") as zip_ref:
     lst = zip_ref.infolist()
     num = len(lst)
     
+    for arq in lst_imgs[0]:
+        print(arq.filename)
+    
     '''
     # procura numero bom de funcs lambda
     last = num*5 if num*5 < 600 else 600
