@@ -24,25 +24,23 @@ def load_graph(model_file):
 
   return graph
 
-def read_tensor_from_image_file(file_name,
+def read_tensor_from_image_file(file_bytes,
+                                file_name,
                                 input_height=299,
                                 input_width=299,
                                 input_mean=0,
                                 input_std=255):
-  input_name = "file_reader"
-  output_name = "normalized"
-  file_reader = tf.read_file(file_name, input_name)
   if file_name.endswith(".png"):
     image_reader = tf.image.decode_png(
-        file_reader, channels=3, name="png_reader")
+        file_bytes, channels=3, name="png_reader")
   elif file_name.endswith(".gif"):
     image_reader = tf.squeeze(
-        tf.image.decode_gif(file_reader, name="gif_reader"))
+        tf.image.decode_gif(file_bytes, name="gif_reader"))
   elif file_name.endswith(".bmp"):
-    image_reader = tf.image.decode_bmp(file_reader, name="bmp_reader")
+    image_reader = tf.image.decode_bmp(file_bytes, name="bmp_reader")
   else:
     image_reader = tf.image.decode_jpeg(
-        file_reader, channels=3, name="jpeg_reader")
+        file_bytes, channels=3, name="jpeg_reader")
   float_caster = tf.cast(image_reader, tf.float32)
   dims_expander = tf.expand_dims(float_caster, 0)
   resized = tf.image.resize_bilinear(dims_expander, [input_height, input_width])
@@ -91,7 +89,7 @@ def lambda_handler(event, context):
     import zipfile
     
     img_list = event['lista_imagens']
-    zip_path = event['zip_name']
+    zip_path = event['zip_path']
     zip_name = zip_path.split('/')[-1]
     bucket = 'lucasmodelcinq'
       
@@ -114,23 +112,23 @@ def lambda_handler(event, context):
     
     lst_imgs = {}
     
-    try:        
-        with zipfile.ZipFile('/tmp/'+zip_name, 'r') as zip_ref:
-            for arq in img_list:
-                name = arq.filename
-                data = dynamodb_client.get_item(TableName='predicoes', Key={'nome_imagem': {'S': name}})
-                if 'Item' not in data.keys():
-                    lst_imgs[name] = (read_tensor_from_image_file(
-                        zip_ref.read(arq),
-                        input_height=input_height,
-                        input_width=input_width,
-                        input_mean=input_mean,
-                        input_std=input_std))  
-                else:
-                    print('imagem ja processada')
-    except:
-        print('problema na leitura do zip')
-        exit(0)
+    #try:        
+    with zipfile.ZipFile('/tmp/'+zip_name, 'r') as zip_ref:
+        for arq in img_list:
+            data = dynamodb_client.get_item(TableName='predicoes', Key={'nome_imagem': {'S': arq}})
+            if 'Item' not in data.keys():
+                lst_imgs[arq] = (read_tensor_from_image_file(
+                    file_bytes = zip_ref.read(arq),
+                    file_name = arq,
+                    input_height=input_height,
+                    input_width=input_width,
+                    input_mean=input_mean,
+                    input_std=input_std))  
+            else:
+                print('imagem ja processada')
+    #except Exception as e:
+     #   print('problema na leitura do zip.\n', e)
+      #  exit(0)
             
     if len(lst_imgs) > 0 :
         lst_preds = prediz(lst_imgs, '/tmp/'+'model1_graph.pb', '/tmp/'+'model1_labels.txt')
@@ -139,5 +137,5 @@ def lambda_handler(event, context):
             aux = [{'M': {pred[1][i]: {'N': str(pred[2][i])}}} for i in pred[3]]
             item = {'nome_imagem': {'S': pred[0]}, 'percents': {'L': aux}}
             dynamodb_client.put_item(TableName='predicoes', Item=item)
-            print('Terminou de gravar no DynamoDB...')
+        print('Terminou de gravar no DynamoDB...')
     print('Terminou Lambda...')

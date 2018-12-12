@@ -34,10 +34,17 @@ def getsize(obj_0):
         return size
     return inner(obj_0)
 
+item = {'nome_imagem': {'S': 'dTNCX3IQwncd4THh.jpg'}, 'percents': {'N': 0.8888}}
+getsize(item)
 import zipfile
 
 with zipfile.ZipFile('test2.zip',"r") as zip_ref:
     lst = zip_ref.infolist()
+    lst = [arq.filename for arq in lst]
+    
+    with open('img_test.jpg', 'wb') as f:
+        f.write(zip_ref.read(lst[0]))
+    
     num = len(lst)
     
     for arq in lst_imgs[0]:
